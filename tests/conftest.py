@@ -6,9 +6,10 @@ from datetime import datetime
 
 # Configure pytest-asyncio mode (optional - only if installed)
 try:
+    import pytest_asyncio
     pytest_plugins = ('pytest_asyncio',)
-except Exception:
-    pass
+except ImportError:
+    pytest_plugins = ()
 
 # Ensure project modules are importable
 sys.path.insert(0, str(Path(__file__).parent.parent))
