@@ -28,6 +28,7 @@ opentelemetry-instrumentation-redis>=0.41b0,<1.0
 opentelemetry-instrumentation-sqlalchemy>=0.41b0,<1.0
 structlog>=22.3.0,<24.0
 python-json-logger>=2.0.0,<3.0
+thrift>=0.10.0
 
 # Infrastructure & coordination
 redis==5.0.1
