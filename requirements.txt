@@ -24,7 +24,7 @@ prometheus-client==0.21.0
 redis==5.0.1
 
 # Testing & async support
-pytest-asyncio==0.23.3
+pytest-asyncio==0.24.0
 pytest-timeout==2.1.0
 
 # Utilities
