@@ -441,8 +441,8 @@ class DistributedResilienceCoordinator:
             # Apply fallback mode change if different
             if self.fallback and decision.fallback_mode != "PRIMARY":
                 logger.info(f"Applying consensus fallback mode: {decision.fallback_mode}")
-                await self.fallback.cascade(decision.fallback_mode)
-                return True
+                result = await self.fallback.set_mode(decision.fallback_mode)
+                return result
 
             return True
         except Exception as e:

@@ -233,6 +233,34 @@ class FallbackManager:
         """Get current mode as string."""
         return self.current_mode.value
     
+    async def set_mode(self, mode: str) -> bool:
+        """Directly set fallback mode from mode string.
+        
+        Used by distributed coordinator to apply cluster consensus decisions.
+        Converts string mode to FallbackMode enum and transitions immediately.
+        
+        Args:
+            mode: Mode string ("PRIMARY", "HEURISTIC", or "SAFE")
+            
+        Returns:
+            True if mode was set, False if invalid mode string
+        """
+        try:
+            target_mode = FallbackMode(mode)
+            if target_mode != self.current_mode:
+                # Create synthetic health state for transition logging
+                synthetic_state = {
+                    "circuit_breaker": {},
+                    "retry": {},
+                    "system": {},
+                }
+                await self._transition_to_mode(target_mode, synthetic_state)
+            logger.debug(f"Fallback mode set to {mode}")
+            return True
+        except ValueError:
+            logger.warning(f"Invalid fallback mode: {mode}")
+            return False
+    
     def is_degraded(self) -> bool:
         """Check if system is in degraded mode (not PRIMARY)."""
         return self.current_mode != FallbackMode.PRIMARY

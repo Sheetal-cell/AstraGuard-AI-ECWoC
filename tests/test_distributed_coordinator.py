@@ -672,12 +672,12 @@ async def test_apply_consensus_decision_updates_fallback(
         voting_instances=3,
         consensus_strength=0.75,
     )
-    mock_fallback_manager.cascade = AsyncMock(return_value="SAFE")
+    mock_fallback_manager.set_mode = AsyncMock(return_value=True)
 
     result = await coordinator.apply_consensus_decision(decision)
 
     assert result is True
-    mock_fallback_manager.cascade.assert_called_once_with("SAFE")
+    mock_fallback_manager.set_mode.assert_called_once_with("SAFE")
 
 
 @pytest.mark.asyncio
@@ -697,4 +697,4 @@ async def test_apply_consensus_no_change_when_primary(
     result = await coordinator.apply_consensus_decision(decision)
 
     assert result is True
-    mock_fallback_manager.cascade.assert_not_called()
+    mock_fallback_manager.set_mode.assert_not_called()
