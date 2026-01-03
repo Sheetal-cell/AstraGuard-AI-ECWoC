@@ -29,6 +29,8 @@ from enum import Enum
 import yaml
 import os
 
+from backend.safe_condition_parser import safe_evaluate_condition
+
 logger = logging.getLogger(__name__)
 
 
@@ -490,13 +492,16 @@ class EnhancedRecoveryOrchestrator:
         step_idx: int
     ) -> bool:
         """
-        Evaluate escalation condition (NEW).
+        Evaluate escalation condition using safe parser (SECURITY FIX).
 
         Supports:
         - "always" - always execute
         - "severity >= X" - severity threshold
         - "recurrence_count >= X" - recurrence check
         - "duration > X" - time-based condition
+
+        Security: Uses safe_condition_parser instead of eval()
+        to prevent code injection attacks.
 
         Args:
             condition: Condition string from YAML
@@ -506,30 +511,16 @@ class EnhancedRecoveryOrchestrator:
         Returns:
             True if condition met, False otherwise
         """
-        if condition == "always":
-            return True
+        # Build context for safe evaluation
+        context = {
+            "severity": event.severity_score,
+            "recurrence_count": event.recurrence_count,
+            "confidence": event.confidence,
+            "step": step_idx,
+        }
 
-        try:
-            # Replace variables with actual values
-            context = {
-                "severity": event.severity_score,
-                "recurrence_count": event.recurrence_count,
-                "confidence": event.confidence,
-                "step": step_idx,
-            }
-
-            # Simple condition evaluation
-            for var, value in context.items():
-                condition = condition.replace(var, str(value))
-
-            # Evaluate (safe eval for simple conditions)
-            # In production, use a proper expression parser
-            result = eval(condition, {"__builtins__": {}}, {})
-            return bool(result)
-
-        except Exception as e:
-            logger.error(f"Error evaluating condition '{condition}': {e}")
-            return False
+        # Use safe parser (no eval, no code injection)
+        return safe_evaluate_condition(condition, context)
 
     def _check_phase_restrictions(self, action_type: str) -> bool:
         """
