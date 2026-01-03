@@ -32,6 +32,8 @@ from backend.health_monitor import (
 )
 from backend.fallback_manager import FallbackManager
 from backend.recovery_orchestrator import RecoveryOrchestrator
+from backend.redis_client import RedisClient
+from backend.distributed_coordinator import DistributedResilienceCoordinator
 from core.component_health import SystemHealthMonitor
 
 # Configure logging
@@ -51,6 +53,10 @@ fallback_manager: FallbackManager = None
 recovery_orchestrator: RecoveryOrchestrator = None
 component_health: SystemHealthMonitor = None
 
+# Initialize distributed coordinator (Issue #18)
+redis_client: RedisClient = None
+distributed_coordinator: DistributedResilienceCoordinator = None
+
 
 # ============================================================================
 # LIFESPAN MANAGEMENT
@@ -68,7 +74,7 @@ async def lifespan(app: FastAPI):
     # ========== STARTUP ==========
     logger.info("🚀 AstraGuard AI Backend starting...")
     
-    global health_monitor, fallback_manager, component_health
+    global health_monitor, fallback_manager, component_health, redis_client, distributed_coordinator
     
     try:
         # Initialize component health monitor
@@ -94,6 +100,25 @@ async def lifespan(app: FastAPI):
             fallback_manager=fallback_manager,
             config_path="config/recovery.yaml",
         )
+        
+        # Initialize Redis client (Issue #18)
+        import os
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_client = RedisClient(redis_url=redis_url)
+        redis_connected = await redis_client.connect()
+        
+        if redis_connected:
+            # Initialize distributed coordinator (Issue #18)
+            distributed_coordinator = DistributedResilienceCoordinator(
+                redis_client=redis_client,
+                health_monitor=health_monitor,
+                recovery_orchestrator=recovery_orchestrator,
+                fallback_manager=fallback_manager,
+            )
+            await distributed_coordinator.startup()
+            logger.info("✅ Distributed Resilience Coordinator initialized")
+        else:
+            logger.warning("⚠️  Redis connection failed, running in standalone mode")
         
         # Register health monitor with FastAPI
         set_health_monitor(health_monitor)
@@ -128,6 +153,16 @@ async def lifespan(app: FastAPI):
         
         # ========== SHUTDOWN ==========
         logger.info("🛑 AstraGuard AI Backend shutting down...")
+        
+        # Shutdown distributed coordinator
+        if distributed_coordinator:
+            await distributed_coordinator.shutdown()
+            logger.info("✅ Distributed Coordinator shutdown")
+        
+        # Close Redis connection
+        if redis_client and redis_client.connected:
+            await redis_client.close()
+            logger.info("✅ Redis connection closed")
         
         health_task.cancel()
         recovery_task.cancel()
@@ -275,6 +310,45 @@ def create_app() -> FastAPI:
             return {"error": "Recovery orchestrator not initialized"}
         
         return recovery_orchestrator.get_cooldown_status()
+    
+    # Distributed Coordinator endpoints (Issue #18)
+    @app.get("/cluster/consensus")
+    async def cluster_consensus():
+        """Get quorum-based cluster consensus decision."""
+        if not distributed_coordinator:
+            return {"error": "Distributed coordinator not initialized (standalone mode)"}
+        
+        consensus = await distributed_coordinator.get_cluster_consensus()
+        return consensus.dict()
+    
+    @app.get("/cluster/health")
+    async def cluster_health():
+        """Get aggregated health status of entire cluster."""
+        if not distributed_coordinator:
+            return {"error": "Distributed coordinator not initialized (standalone mode)"}
+        
+        return await distributed_coordinator.get_cluster_health()
+    
+    @app.get("/cluster/metrics")
+    async def cluster_metrics():
+        """Get distributed coordinator metrics."""
+        if not distributed_coordinator:
+            return {"error": "Distributed coordinator not initialized (standalone mode)"}
+        
+        return await distributed_coordinator.get_metrics()
+    
+    @app.get("/cluster/leader")
+    async def cluster_leader():
+        """Get current cluster leader."""
+        if not distributed_coordinator:
+            return {"error": "Distributed coordinator not initialized (standalone mode)"}
+        
+        leader = await redis_client.get_leader()
+        return {
+            "leader": leader or "NONE",
+            "is_leader": distributed_coordinator.is_leader,
+            "instance_id": distributed_coordinator.instance_id,
+        }
     
     # ========== ERROR HANDLERS ==========
     
