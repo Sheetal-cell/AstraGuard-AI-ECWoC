@@ -350,6 +350,46 @@ def create_app() -> FastAPI:
             "instance_id": distributed_coordinator.instance_id,
         }
     
+    # ========== CHAOS ENGINEERING ENDPOINTS (Issue #19) ==========
+    
+    @app.post("/_chaos/{fault_type}")
+    async def inject_chaos(fault_type: str):
+        """Inject controlled chaos for resilience testing.
+        
+        **ADMIN ONLY** - Internal endpoint for chaos engineering tests.
+        
+        Supported fault types:
+        - model_loader: Simulate model loading failure
+        - network_latency: Inject network latency
+        - redis_failure: Simulate Redis service failure
+        
+        Args:
+            fault_type: Type of fault to inject
+            
+        Returns:
+            Status of chaos injection
+        """
+        from backend.chaos_engine import ChaosEngine
+        
+        try:
+            engine = ChaosEngine()
+            await engine.startup()
+            
+            logger.info(f"🧪 Chaos injection starting: {fault_type}")
+            result = await engine.inject_faults(fault_type, duration_seconds=30)
+            
+            await engine.shutdown()
+            
+            if result:
+                logger.info(f"✅ Chaos injection completed: {fault_type}")
+                return {"status": "success", "fault_type": fault_type, "duration_seconds": 30}
+            else:
+                logger.warning(f"⚠️  Chaos injection failed: {fault_type}")
+                return {"status": "failed", "fault_type": fault_type, "error": "Injection did not recover within timeout"}
+        except Exception as e:
+            logger.error(f"❌ Chaos injection error: {e}", exc_info=True)
+            return {"status": "error", "fault_type": fault_type, "error": str(e)}
+    
     # ========== ERROR HANDLERS ==========
     
     @app.exception_handler(Exception)
