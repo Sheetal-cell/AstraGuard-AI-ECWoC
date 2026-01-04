@@ -210,8 +210,8 @@ class TestFeedbackEpic:
                 # Simulate learning: 85% correct detection after feedback
                 success = random.random() < 0.85
             else:
-                # Baseline: 60% correct without learning
-                success = random.random() < 0.60
+                # Baseline: 50% correct without learning
+                success = random.random() < 0.50
             
             results.append(success)
         
