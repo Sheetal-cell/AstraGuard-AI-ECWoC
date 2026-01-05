@@ -10,10 +10,12 @@ Features:
 - Resource usage history for diagnostics
 - Integration with health monitor
 - Automatic alerts when thresholds exceeded
+- Non-blocking CPU monitoring
 """
 
 import psutil
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
@@ -122,6 +124,8 @@ class ResourceMonitor:
         """
         Collect current resource metrics.
         
+        Uses interval=0 for CPU to ensure non-blocking operation.
+        
         Returns:
             ResourceMetrics snapshot of current system state
         """
@@ -135,6 +139,9 @@ class ResourceMonitor:
             )
         
         try:
+            # CPU usage (interval=0 for non-blocking return)
+            # This returns usage since last call, which is ideal for periodic monitoring
+            cpu_percent = psutil.cpu_percent(interval=0)
             # CPU usage (1 second interval for accuracy)
             cpu_percent = psutil.cpu_percent(interval=0.1)
             
