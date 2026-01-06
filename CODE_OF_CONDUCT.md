@@ -49,7 +49,6 @@ The following behaviors are not tolerated:
 If you experience or witness behavior that violates this Code of Conduct:
 
 Report it confidentially via:
-
   - GitHub Issues (if appropriate), or
   - Direct contact with project maintainers (listed in README / CONTRIBUTING)
   - Include relevant context, links, or evidence where possible
@@ -58,8 +57,8 @@ Report it confidentially via:
 ### Enforcement & Accountability
 
 Project maintainers are responsible for enforcing this Code of Conduct.
-Depending on severity and impact, actions may include:
 
+Depending on severity and impact, actions may include:
 - Warning : private notice with guidance.
 - Temporary restrictions : limited participation for a defined period.
 - Temporary suspension : removal from project spaces.
@@ -67,12 +66,10 @@ Depending on severity and impact, actions may include:
 
 Maintainers may skip steps based on severity. Decisions are made to protect the project and community, not to punish individuals.
 
-
 ---
 ### Scope
 
 This Code of Conduct applies to:
-
 - GitHub issues, pull requests, and discussions.
 - Project communication channels (GitHub, WhatsApp, Discord, email).
 - Any situation where an individual is representing AstraGuard AI.
