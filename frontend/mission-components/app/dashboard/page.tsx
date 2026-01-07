@@ -11,6 +11,7 @@ import dashboardData from '../mocks/dashboard.json';
 import { SystemsPanel } from '../components/systems/SystemsPanel';
 import { ChaosPanel } from '../components/chaos/ChaosPanel';
 import { CommandTerminal } from '../components/uplink/CommandTerminal';
+import { ReplayControls } from '../components/replay/ReplayControls';
 
 import { DashboardProvider, useDashboard } from '../context/DashboardContext';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
@@ -36,6 +37,10 @@ const DashboardContent: React.FC = () => {
 
           {/* Desktop: Horizontal (hidden on mobile) */}
           <DesktopTabNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+          <div className="hidden md:block ml-auto">
+            <ReplayControls />
+          </div>
         </nav>
 
         <main className="flex-1 px-6 pb-8 relative">

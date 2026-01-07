@@ -6,7 +6,7 @@ FastAPI-based REST API for telemetry ingestion and anomaly detection.
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 from collections import deque
 from fastapi import FastAPI, HTTPException, status
@@ -757,6 +757,49 @@ async def get_chaos_status():
         "details": active_faults
     }
 
+
+
+@app.get("/api/v1/replay/session")
+async def get_replay_session(incident_type: str = "VOLTAGE_SPIKE"):
+    """
+    Generate a synthetic replay session (60 seconds) for a given incident type.
+    """
+    # Generate 60 points (1 per second)
+    replay_data = []
+    base_time = datetime.now() - timedelta(minutes=5)
+    
+    for i in range(60):
+        t = base_time + timedelta(seconds=i)
+        
+        # Default nominal values
+        voltage = 3.6
+        temp = 45.0
+        gyro = 0.001
+        
+        # Inject anomalies based on scenario and time (peak at 30s)
+        progress = i / 60.0
+        
+        if incident_type == "VOLTAGE_SPIKE":
+            if 20 < i < 40:
+                voltage += 1.5 * np.sin((i - 20) * 0.3) # Spike usage
+        elif incident_type == "THERMAL_RUNAWAY":
+             if i > 15:
+                 temp += (i - 15) * 1.5 # Linear increase
+        elif incident_type == "GYRO_DRIFT":
+             if i > 10:
+                 gyro += (i - 10) * 0.05
+        
+        replay_data.append({
+            "timestamp": t.isoformat(),
+            "voltage": float(voltage),
+            "temperature": float(temp),
+            "gyro": float(gyro),
+            "current": 2.1,
+            "wheel_speed": 4500.0,
+            "anomaly_score": 0.8 if (20 < i < 40) else 0.1 # Mock score
+        })
+        
+    return {"incident": incident_type, "frames": replay_data}
 
 if __name__ == "__main__":
     import uvicorn

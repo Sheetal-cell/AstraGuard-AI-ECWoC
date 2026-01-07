@@ -82,92 +82,108 @@ export const telemetryReducer = (state: TelemetryState, action: any): TelemetryS
 };
 
 export const useDashboardWebSocket = () => {
-    // TODO: Add error boundary for WebSocket connection failures
-    // TODO: Implement caching mechanism for offline data persistence
-    // TODO: Add connection pooling for multiple WebSocket connections
-    // TODO: Optimize performance with message batching and throttling
     const [state, dispatch] = useReducer(telemetryReducer, initialState);
     const [isConnected, setConnected] = useState(false);
-    const reconnectAttempts = useRef(0); // Kept for future use
-    // const maxReconnects = 5;
+
+    // Replay State
+    const [isReplayMode, setReplayMode] = useState(false);
+    const [replayData, setReplayData] = useState<any[]>([]);
+    const [replayProgress, setReplayProgress] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const reconnectAttempts = useRef(0);
+
+    const toggleReplayMode = async () => {
+        if (!isReplayMode) {
+            // Enter Replay Mode: Fetch session
+            try {
+                const res = await fetch('http://localhost:8002/api/v1/replay/session?incident_type=VOLTAGE_SPIKE');
+                const data = await res.json();
+                setReplayData(data.frames);
+                setReplayProgress(0);
+                setIsPlaying(true);
+            } catch (e) {
+                console.error("Failed to load replay session", e);
+            }
+        }
+        setReplayMode(!isReplayMode);
+    };
+
+    const togglePlay = () => setIsPlaying(!isPlaying);
 
     const pollBackend = useCallback(async () => {
+        if (isReplayMode) return; // Stop polling in replay mode
+
         try {
-            // Fetch Status (Phase & Health)
-            const statusRes = await fetch('http://localhost:8002/api/v1/status');
+            // Fetch Status, Telemetry, Anomalies...
+            const [statusRes, telemetryRes, historyRes] = await Promise.all([
+                fetch('http://localhost:8002/api/v1/status'),
+                fetch('http://localhost:8002/api/v1/telemetry/latest'),
+                fetch('http://localhost:8002/api/v1/history/anomalies?limit=10')
+            ]);
+
             const statusData = await statusRes.json();
-
-            // Fetch Latest Telemetry
-            const telemetryRes = await fetch('http://localhost:8002/api/v1/telemetry/latest');
             const telemetryDataRaw = await telemetryRes.json();
-
-            // Fetch Anomalies
-            const historyRes = await fetch('http://localhost:8002/api/v1/history/anomalies?limit=10');
             const historyData = await historyRes.json();
 
             setConnected(true);
             dispatch({ type: 'CONNECTION_STATUS', payload: 'connected' });
-            reconnectAttempts.current = 0;
 
-            // 1. Update Mission Phase
-            // Map backend "NOMINAL_OPS" to dashboard phases
-            if (statusData.mission_phase) {
-                dispatch({
-                    type: 'TELEMETRY_UPDATE',
-                    payload: {
-                        mission: {
-                            // We don't overwrite the whole list, just active state logic would go here
-                            // For now, let's just log it or handle it if we had a setPhase action
-                        }
-                    }
-                });
-            }
-
-            // 2. Update System Health (Generic)
-            if (statusData.components) {
-                // Map component health to KPI or Health Table
-            }
-
-            // 3. Update Telemetry Charts/KPIs
+            // Update KPIs with live data
             if (telemetryDataRaw.data) {
                 const t = telemetryDataRaw.data;
-                // Update KPIs based on specific IDs matching backend
-                const kpiUpdates = [
-                    { id: 'voltage', label: 'Bus Voltage', value: `${t.voltage.toFixed(2)}V`, status: 'nominal', trend: 'stable' },
-                    { id: 'current', label: 'Total Current', value: `${t.current?.toFixed(2) || '0.00'}A`, status: 'nominal', trend: 'stable' },
-                    { id: 'temp', label: 'Core Temp', value: `${t.temperature.toFixed(1)}°C`, status: t.temperature > 50 ? 'warning' : 'nominal', trend: 'increasing' },
-                    { id: 'gyro', label: 'Gyro Stability', value: `${t.gyro.toFixed(4)}`, status: 'nominal', trend: 'stable' }
-                ];
-
-                kpiUpdates.forEach(kpi => dispatch({ type: 'KPI_UPDATE', payload: kpi }));
-            }
-
-            // 4. Update Anomalies
-            if (historyData.anomalies) {
-                // Need to reconcile list. For now, we can just "Add" new ones if ID unique
-                // Or simplified: just console log for this iteration
+                updateKPIs(t, dispatch);
             }
 
         } catch (error) {
-            console.warn('[Polling] Failed to fetch backend data - using mockup', error);
-            // If offline, we stay "connected" via mock data for user experience
-            // But we could toggle a "Simulation Mode" flag
+            console.warn('[Polling] Failed - using mockup');
             setConnected(true);
         }
-    }, []);
+    }, [isReplayMode]);
 
-    // Effect for polling
+    // Handle Replay Frame Updates
     useEffect(() => {
+        if (isReplayMode && replayData.length > 0) {
+            // Map progress 0-100 to frame index
+            const frameIndex = Math.floor((replayProgress / 100) * (replayData.length - 1));
+            const frame = replayData[frameIndex];
+
+            if (frame) {
+                updateKPIs(frame, dispatch);
+            }
+        }
+    }, [isReplayMode, replayProgress, replayData]);
+
+    // Effect for polling (only when not replay)
+    useEffect(() => {
+        if (isReplayMode) return;
         const interval = setInterval(pollBackend, 2000);
-        pollBackend(); // Initial call
+        pollBackend();
         return () => clearInterval(interval);
-    }, [pollBackend]);
+    }, [pollBackend, isReplayMode]);
 
 
     return {
         state,
         isConnected,
-        send: () => { }, // No-op for now
-        dispatch // For manual actions like ACK
+        send: () => { },
+        dispatch,
+        isReplayMode,
+        toggleReplayMode,
+        replayProgress,
+        setReplayProgress,
+        isPlaying,
+        togglePlay
     };
+};
+
+// Helper
+const updateKPIs = (t: any, dispatch: any) => {
+    const kpiUpdates = [
+        { id: 'voltage', label: 'Bus Voltage', value: `${t.voltage.toFixed(2)}V`, status: 'nominal', trend: 'stable' },
+        { id: 'current', label: 'Total Current', value: `${t.current?.toFixed(2) || '0.00'}A`, status: 'nominal', trend: 'stable' },
+        { id: 'temp', label: 'Core Temp', value: `${t.temperature.toFixed(1)}°C`, status: t.temperature > 50 ? 'warning' : 'nominal', trend: 'increasing' },
+        { id: 'gyro', label: 'Gyro Stability', value: `${t.gyro.toFixed(4)}`, status: 'nominal', trend: 'stable' }
+    ];
+    kpiUpdates.forEach(kpi => dispatch({ type: 'KPI_UPDATE', payload: kpi }));
 };
