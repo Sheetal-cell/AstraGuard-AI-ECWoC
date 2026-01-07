@@ -143,7 +143,7 @@ export const useDashboardWebSocket = () => {
 
     // Handle Replay Frame Updates
     useEffect(() => {
-        if (isReplayMode && replayData.length > 0) {
+        if (isReplayMode && replayData && replayData.length > 0) {
             // Map progress 0-100 to frame index
             const frameIndex = Math.floor((replayProgress / 100) * (replayData.length - 1));
             const frame = replayData[frameIndex];
